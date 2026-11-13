@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/dist
+**/.output
+**/.tanstack
+**/.wrangler
+**/.env
+**/.env.*
+**/.dev.vars*
+!**/.env.example
+!**/.dev.vars.example
+target
+output
+
+.release-keys

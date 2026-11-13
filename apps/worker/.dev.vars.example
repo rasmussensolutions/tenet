@@ -1,0 +1,6 @@
+# Generate: openssl rand -hex 32
+BETTER_AUTH_SECRET=
+
+# Optional signed daemon updates (configure both). No private signing key on the panel.
+# TENET_RELEASE_URL=https://github.com/OWNER/REPO/releases/latest/download/release.json
+# TENET_RELEASE_PUBLIC_KEY=<64-character Ed25519 public key; see docs/updates.md>

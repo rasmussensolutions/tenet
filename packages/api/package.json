@@ -1,0 +1,25 @@
+{
+  "name": "@tenet/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./machines": "./src/machines/store.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "1.7.22",
+    "better-auth": "1.7.22",
+    "hono": "4.13.18"
+  },
+  "devDependencies": {
+    "@tenet/typescript-config": "workspace:*",
+    "@types/bun": "^1.4.4",
+    "@types/pg": "^8.23.1",
+    "pg": "8.23.1",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "extends": "@tenet/typescript-config/react.json",
+  "compilerOptions": { "types": ["react"] },
+  "include": ["src"]
+}

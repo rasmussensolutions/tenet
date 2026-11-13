@@ -1,0 +1,5 @@
+{
+  "extends": "@tenet/typescript-config/base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src", "env.d.ts", "worker-configuration.d.ts"]
+}

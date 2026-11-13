@@ -1,0 +1,37 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tenet
+      POSTGRES_DB: tenet
+      POSTGRES_PASSWORD: ${TENET_DB_PASSWORD:?Set TENET_DB_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  panel:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tenet:${TENET_DB_PASSWORD}@database:5432/tenet
+      TENET_ORIGIN: ${TENET_ORIGIN:?Set the public HTTPS origin}
+      TENET_RELEASE_URL: ${TENET_RELEASE_URL:-}
+      TENET_RELEASE_PUBLIC_KEY: ${TENET_RELEASE_PUBLIC_KEY:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Generate a 64-character secret}
+    ports:
+      - "127.0.0.1:3002:3002"
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+volumes:
+  database:

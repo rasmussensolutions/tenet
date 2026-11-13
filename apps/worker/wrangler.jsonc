@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "tenet-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": { "TENET_ORIGIN": "http://localhost:8787" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tenet",
+      "database_id": "replace-with-your-d1-id",
+      "migrations_dir": "../../packages/api/migrations/sqlite"
+    }
+  ],
+  "assets": {
+    "directory": "../dashboard/dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
+  }
+}

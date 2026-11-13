@@ -1,0 +1,69 @@
+name: Release daemon
+on:
+  push:
+    tags: ["daemon-v*"]
+permissions:
+  contents: read
+concurrency:
+  group: daemon-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: 1.94.0
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - run: bun install --frozen-lockfile
+      - run: bun run lint && bun run test
+      - run: cargo test --workspace --locked
+      - run: bun run bundle:daemon
+      - name: Test Linux update and rollback
+        run: |
+          docker build --platform linux/amd64 -t tenet-updater-test -f deploy/daemon/test.Dockerfile .
+          TENET_TEST_LINUX_UPDATER=1 bun test packages/api/test/updater-linux.test.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: daemon-release
+          path: apps/dashboard/public/daemon/
+          retention-days: 7
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Only the reviewed publish job can access the signing key.
+    environment: daemon-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: daemon-release
+          path: apps/dashboard/public/daemon/
+      - name: Sign release metadata
+        env:
+          TENET_RELEASE_SIGNING_KEY: ${{ secrets.TENET_RELEASE_SIGNING_KEY }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: bun scripts/release-daemon.ts sign apps/dashboard/public/daemon "https://github.com/$REPOSITORY/releases/download/$RELEASE_TAG/" apps/dashboard/public/daemon/release.json
+      - name: Publish immutable versioned assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes "Signed Tenet daemon release. See docs/updates.md for verification and setup." apps/dashboard/public/daemon/tenetd-linux-* apps/dashboard/public/daemon/manifest.json apps/dashboard/public/daemon/release.json
+          gh release edit "$RELEASE_TAG" --draft=false --latest

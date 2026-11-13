@@ -1,0 +1,28 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.7/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!!**/routeTree.gen.ts",
+      "!!**/worker-configuration.d.ts",
+      "!!**/dist",
+      "!!**/.output",
+      "!!**/.tanstack",
+      "!!**/.wrangler",
+      "!!target",
+      "!!bun.lock"
+    ]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } },
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "semicolons": "always" }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["apps/dashboard/**/*.css"],
+      "css": { "parser": { "tailwindDirectives": true } }
+    }
+  ]
+}
