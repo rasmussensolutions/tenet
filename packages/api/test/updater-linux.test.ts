@@ -127,7 +127,11 @@ test.skipIf(!process.env.TENET_TEST_LINUX_UPDATER)(
           cert: Bun.file(join(directory, "cert.pem")),
         },
         fetch: async (req) => {
-          if (new URL(req.url).pathname === "/artifact") {
+          if (
+            ["/artifact", "/daemon/tenetd-linux-x86_64"].includes(
+              new URL(req.url).pathname,
+            )
+          ) {
             artifactHadCredential ||= req.headers.has("authorization");
             return new Response(new Uint8Array(artifact));
           }
@@ -145,6 +149,7 @@ test.skipIf(!process.env.TENET_TEST_LINUX_UPDATER)(
         origin: panel,
         releaseUrl: `${panel}/release.json`,
         releasePublicKey: publicKey,
+        loadDaemonRelease: async () => bundled,
       };
       app = createApi(env);
       const browser = new Browser(app);
@@ -196,6 +201,7 @@ test.skipIf(!process.env.TENET_TEST_LINUX_UPDATER)(
         join(directory, "systemctl"),
         `#!/bin/sh
 set -eu
+case "$1" in show-environment|daemon-reload|enable|start) exit 0 ;; esac
 [ "$1" = restart ] && [ "$2" = tenetd.service ]
 if [ -f /run/tenetd.pid ]; then kill "$(cat /run/tenetd.pid)" 2>/dev/null || true; fi
 rm -f /run/tenetd.pid
@@ -224,21 +230,32 @@ start-stop-daemon --start --background --make-pidfile --pidfile /run/tenetd.pid 
 install -d -m 0700 -o tenetd /var/lib/tenetd
 install -m 0600 -o tenetd /fixtures/identity.json /var/lib/tenetd/identity.json
 install -m 0755 /fixtures/old /usr/local/bin/tenetd
-install -m 0755 /fixtures/tenetd /usr/local/bin/helper
+mkdir -p /etc/systemd/system
+touch /etc/systemd/system/tenetd.service
 install -m 0755 /fixtures/systemctl /usr/bin/systemctl
 cp /fixtures/ca.pem /usr/local/share/ca-certificates/tenet-test.crt
 update-ca-certificates >/dev/null`,
       );
       await exec(
-        "/usr/local/bin/helper",
-        "configure-updater",
-        publicKey,
-        panel,
-        "0.0.0",
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        `${panel}/api/agent/updater.sh`,
+        "-o",
+        "/tmp/updater.sh",
       );
+      await exec("sh", "/tmp/updater.sh");
+      expect(
+        (await exec("stat", "-c", "%a", "/etc/tenet/updater.json")).trim(),
+      ).toBe("600");
       // Honor the restrictive production service umask during every update.
       const tick = () =>
-        exec("sh", "-ec", "umask 077; /usr/local/bin/helper update-worker");
+        exec(
+          "sh",
+          "-ec",
+          "umask 077; /usr/local/libexec/tenet-updater update-worker",
+        );
       await tick();
       await machines.ingest(ticket.id, {
         version: 1,
@@ -308,7 +325,7 @@ update-ca-certificates >/dev/null`,
       await exec(
         "sh",
         "-ec",
-        "install -m 0600 /fixtures/crash-journal.json /var/lib/tenet-updater/journal.json; printf '#!/bin/sh\\nexit 1\\n' > /usr/local/bin/tenetd",
+        "install -m 0600 /fixtures/crash-journal.json /var/lib/tenet-updater/journal.json; printf '#!/bin/sh\\nexit 1\\n' > /usr/local/bin/crashed; chmod 0755 /usr/local/bin/crashed; mv /usr/local/bin/crashed /usr/local/bin/tenetd",
       );
       await tick();
       expect(
