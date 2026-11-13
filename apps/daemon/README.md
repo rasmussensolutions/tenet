@@ -22,3 +22,7 @@ HTTPS enrollment, retries and the telemetry loop. Credentials never appear in
 logs, URL query parameters, or process arguments. The agent has no remote command
 execution. `updater.rs` provides the separate root helper for owner-approved,
 signed updates, atomic replacement, and rollback. See [daemon updates](../../docs/updates.md).
+
+`hosting.rs` detects cloud providers using fixed instance metadata endpoints in a
+background worker. It reports only provider, region and zone, without contacting
+external IP lookup services. See [provider detection](../../docs/machines.md#provider-detection).

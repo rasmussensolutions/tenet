@@ -262,6 +262,14 @@ describe("signed daemon updates", () => {
     expect((await f.updates.list())[0]?.status).toBe("rolled_back");
   });
   test("bootstrap pins trust, keeps monitoring unprivileged, and generates valid shell", async () => {
+    const monitoringScript = installer("https://panel.example.com", {
+      x86_64: "a".repeat(64),
+    });
+    expect(monitoringScript).toContain(
+      "RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK",
+    );
+    expect(monitoringScript).toContain("User=tenetd");
+    expect(monitoringScript).toContain("CapabilityBoundingSet=\n");
     expect(() =>
       updaterInstaller(
         "https://panel.example.com",

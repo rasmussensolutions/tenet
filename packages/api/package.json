@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./machines": "./src/machines/store.ts"
+    "./machines": "./src/machines/store.ts",
+    "./providers": "./src/machines/providers.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"

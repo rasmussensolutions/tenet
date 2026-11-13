@@ -422,6 +422,12 @@ export function createApi(
     await store.audit("machine.revoked", String(body.id));
     return c.json({ ok: true });
   });
+  app.post("/api/machines/provider", async (c) => {
+    const body = await c.req.json<{ id?: unknown; provider?: unknown }>();
+    await machines.setProvider(body?.id, body?.provider);
+    await store.audit("machine.provider_changed", String(body.id));
+    return c.json({ ok: true });
+  });
   app.get("/api/session", async (c) => {
     const session = await requireOwner(
       createAuth(env, c.req.raw.headers),

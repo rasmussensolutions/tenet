@@ -1,4 +1,9 @@
 import { AuthError, hash, randomToken, type Sql } from "../auth/store";
+import {
+  DETECTED_PROVIDERS,
+  type DetectedProvider,
+  type Hosting,
+} from "./providers";
 
 export const ENROLLMENT_MS = 10 * 60_000;
 export const OFFLINE_MS = 60_000;
@@ -8,6 +13,7 @@ export interface Telemetry {
   version: 1;
   hostname: string;
   ipAddresses?: string[];
+  hosting?: Hosting | null;
   os: string;
   arch: string;
   agentVersion: string;
@@ -30,6 +36,7 @@ type MachineRow = Record<string, unknown> & {
   telemetry: string | null;
   updater_key: string | null;
   updater_seen: number | null;
+  provider_override: string | null;
 };
 
 function hasControlCharacters(value: string) {
@@ -91,6 +98,21 @@ function ipAddresses(value: unknown): string[] {
     throw new AuthError("INVALID_TELEMETRY");
   return [...new Set(value as string[])];
 }
+function hosting(value: unknown): Hosting | null {
+  if (value === null) return null;
+  const data = record(value);
+  if (!DETECTED_PROVIDERS.includes(data.provider as DetectedProvider))
+    throw new AuthError("INVALID_TELEMETRY");
+  const result: Hosting = { provider: data.provider as DetectedProvider };
+  for (const field of ["region", "zone"] as const) {
+    if (data[field] === undefined) continue;
+    const component = text(data[field], 100);
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(component))
+      throw new AuthError("INVALID_TELEMETRY");
+    result[field] = component;
+  }
+  return result;
+}
 /** Reconstruct the allowed payload; never persist arbitrary agent-supplied JSON. */
 export function telemetry(value: unknown): Telemetry {
   const data = record(value);
@@ -106,6 +128,7 @@ export function telemetry(value: unknown): Telemetry {
   return {
     version: 1,
     hostname: text(data.hostname, 255),
+    ...(data.hosting === undefined ? {} : { hosting: hosting(data.hosting) }),
     ...(data.ipAddresses === undefined
       ? {}
       : { ipAddresses: ipAddresses(data.ipAddresses) }),
@@ -214,14 +237,34 @@ export class MachineStore {
     if (!rows.length) throw new AuthError("NOT_FOUND", 404);
   }
 
+  async setProvider(id: unknown, value: unknown) {
+    if (typeof id !== "string" || !id || id.length > 64)
+      throw new AuthError("INVALID_ID");
+    // Null means automatic detection. An omitted value is a malformed request.
+    if (
+      value !== null &&
+      (typeof value !== "string" ||
+        !value.trim() ||
+        value.length > 60 ||
+        hasControlCharacters(value))
+    )
+      throw new AuthError("INVALID_PROVIDER");
+    const rows = await this.sql.query(
+      "UPDATE tenet_machine SET provider_override = $1 WHERE id = $2 AND state <> 'revoked' RETURNING id",
+      [typeof value === "string" ? value.trim() : null, id],
+    );
+    if (!rows.length) throw new AuthError("NOT_FOUND", 404);
+  }
+
   async list() {
     const rows = await this.sql.query<MachineRow>(
-      "SELECT id, name, state, created_at, enrollment_expires, last_seen, telemetry, updater_key, updater_seen FROM tenet_machine ORDER BY created_at DESC",
+      "SELECT id, name, state, created_at, enrollment_expires, last_seen, telemetry, updater_key, updater_seen, provider_override FROM tenet_machine ORDER BY created_at DESC",
     );
     const now = Date.now();
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      providerOverride: row.provider_override,
       status:
         row.state === "revoked"
           ? "revoked"

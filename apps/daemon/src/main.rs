@@ -1,4 +1,5 @@
 mod config;
+mod hosting;
 mod metrics;
 mod updater;
 

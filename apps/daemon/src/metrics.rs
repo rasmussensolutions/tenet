@@ -8,6 +8,7 @@ pub struct Metrics {
     version: u8,
     hostname: String,
     ip_addresses: Vec<String>,
+    hosting: Option<crate::hosting::Hosting>,
     os: String,
     arch: &'static str,
     agent_build_id: &'static str,
@@ -28,6 +29,7 @@ struct Disk {
 pub struct Collector {
     system: System,
     disks: Disks,
+    hosting: crate::hosting::Discovery,
 }
 fn label(value: String, max: usize) -> String {
     let clean: String = value
@@ -65,6 +67,7 @@ impl Collector {
         Self {
             system,
             disks: Disks::new_with_refreshed_list(),
+            hosting: crate::hosting::Discovery::new(),
         }
     }
     pub fn sample(&mut self) -> Metrics {
@@ -87,6 +90,7 @@ impl Collector {
         Metrics {
             version: 1,
             ip_addresses: addresses(),
+            hosting: self.hosting.sample(),
             hostname: label(System::host_name().unwrap_or_else(|| "Unknown".into()), 120),
             os: label(
                 System::long_os_version().unwrap_or_else(|| "Linux".into()),

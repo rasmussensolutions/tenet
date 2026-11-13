@@ -96,7 +96,8 @@ RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
 CapabilityBoundingSet=
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# getifaddrs uses netlink to read local interface addresses on Linux.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 [Install]
 WantedBy=multi-user.target
 UNIT

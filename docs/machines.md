@@ -204,11 +204,65 @@ host behind NAT without a public interface address, Tenet does not guess its pub
 IP or contact third-party IP lookup services. Interface reporting is not proof of
 reachability or an SSH address.
 
+If a current daemon reports no addresses, older installations may have a systemd
+socket allowlist that excludes `AF_NETLINK`. Linux uses that socket family to read
+interface addresses. Binary updates preserve the installed service configuration.
+Apply this once on the VPS to correct the monitoring service, keeping it
+unprivileged with no capabilities:
+
+```sh
+sudo mkdir -p /etc/systemd/system/tenetd.service.d
+sudo tee /etc/systemd/system/tenetd.service.d/10-interface-addresses.conf >/dev/null <<'EOF'
+[Service]
+RestrictAddressFamilies=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart tenetd
+```
+
+Allow about 30 seconds for the next report and dashboard refresh. New installations
+already include this setting. The separate privileged updater does not need it.
+
 To upgrade an existing agent, download the newly built binary from your panel's
 `/daemon/tenetd-linux-x86_64` (or aarch64) endpoint, verify its SHA-256 against the
 panel's `/daemon/manifest.json`, stop `tenetd`, replace `/usr/local/bin/tenetd` with
 root ownership and mode 0755, and start `tenetd` again. Preserve
 `/var/lib/tenetd/identity.json`; no new enrollment is needed for a binary upgrade.
+
+## Provider detection
+
+Daemon 0.1.2 adds automatic detection for Hetzner Cloud, AWS, Google Cloud, Azure,
+DigitalOcean and Linode. The Machines table shows the provider; **Details → Provider**
+shows detected region/zone and lets the owner choose **Set manually** and enter a
+provider name (including netcup or a custom name). Save the change, or choose
+**Automatic** and save to clear the override. Manual choices persist independently
+of agent reports. No provider account API key is required.
+
+Detection runs in a background worker, so unavailable metadata does not delay
+monitoring. Successful results are cached until daemon restart; failures retry
+every 15 minutes. Known container environments are skipped. Unsupported providers,
+disabled metadata and older daemons remain usable with a manual label.
+
+The daemon queries only fixed paths at `169.254.169.254`, with 600 ms request
+timeouts, no redirects/proxies and a 16 KiB response limit. AWS uses IMDSv2 and
+Linode uses its metadata token protocol. Only provider, region and zone are sent
+to the panel; user-data and cloud credentials are never requested. These labels
+are informational, not trusted identity or authorization evidence. Manual edits
+require the signed-in owner and same-origin JSON requests, and are audited.
+
+Apply migration `0004_machine_provider.sql` before starting an updated panel
+(`bun --env-file=apps/server/.env run auth:admin migrate`; for D1 use the worker
+migration command above). `bun run dev:tunnel` applies migrations automatically.
+Existing VPSs need the new daemon release for detection; manual overrides work
+with older daemons too.
+
+Metadata references: [Hetzner](https://docs.hetzner.cloud/reference/cloud#server-metadata),
+[AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html),
+[Google Cloud](https://docs.cloud.google.com/compute/docs/metadata/querying-metadata),
+[Azure](https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service),
+[DigitalOcean](https://docs.digitalocean.com/products/droplets/how-to/access-metadata/),
+[Linode](https://techdocs.akamai.com/cloud-computing/docs/metadata-service-api).
 
 ## Signed daemon updates
 

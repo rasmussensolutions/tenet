@@ -2,6 +2,7 @@ import { HardDrivesIcon } from "@phosphor-icons/react/dist/csr/HardDrives";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Machine, MachineList } from "@tenet/api/machines";
+import { PROVIDER_SUGGESTIONS } from "@tenet/api/providers";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,6 +231,7 @@ function MachinesPage() {
               <TableRow>
                 {[
                   "Machine",
+                  "Provider",
                   "Status",
                   "CPU",
                   "Memory",
@@ -258,6 +260,13 @@ function MachinesPage() {
                   )}
                   update={() => void update(machine)}
                   revoke={() => void revoke(machine)}
+                  saveProvider={async (provider) => {
+                    await api("/machines/provider", {
+                      id: machine.id,
+                      provider,
+                    });
+                    setData(await api<MachineList>("/machines"));
+                  }}
                 />
               ))}
             </TableBody>
@@ -478,6 +487,7 @@ function MachineRow({
   update,
   releaseInfo,
   job,
+  saveProvider,
 }: {
   machine: Machine;
   busy: boolean;
@@ -485,6 +495,7 @@ function MachineRow({
   update: () => void;
   releaseInfo: MachineList["releaseInfo"];
   job: NonNullable<MachineList["updates"]>[number] | undefined;
+  saveProvider: (provider: string | null) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const metrics = machine.telemetry;
@@ -555,6 +566,16 @@ function MachineRow({
             <span className="sr-only">Show machine details</span>
           </button>
         </TableHead>
+        <TableCell
+          className="whitespace-nowrap text-xs"
+          title={
+            machine.providerOverride
+              ? "Manually set provider"
+              : "Automatically detected provider"
+          }
+        >
+          {machine.providerOverride ?? metrics?.hosting?.provider ?? "Unknown"}
+        </TableCell>
         <TableCell
           className="whitespace-nowrap text-xs text-muted-foreground"
           title={
@@ -653,7 +674,7 @@ function MachineRow({
         hidden={!expanded}
         className="bg-muted/15 hover:bg-muted/15"
       >
-        <TableCell colSpan={8}>
+        <TableCell colSpan={9}>
           <div className="flex flex-wrap items-start justify-between gap-6 py-1">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
@@ -664,6 +685,11 @@ function MachineRow({
                   machine.status !== "online" &&
                   " · Last reported values"}
               </p>
+              <ProviderSettings
+                machine={machine}
+                save={saveProvider}
+                disabled={busy || machine.status === "revoked"}
+              />
               {metrics && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium">Daemon updates</p>
@@ -707,7 +733,9 @@ function MachineRow({
                   <p className="text-xs font-medium">IP addresses</p>
                   <p className="font-mono text-xs text-muted-foreground">
                     {metrics.ipAddresses?.join(" · ") ||
-                      "Not reported by this agent. Upgrade the daemon to report interface addresses."}
+                      (metrics.ipAddresses === undefined
+                        ? "Not reported by this agent. Upgrade the daemon to report interface addresses."
+                        : "The daemon reported no interface addresses.")}
                   </p>
                   <p className="text-xs font-medium">Mounted filesystems</p>
                   {metrics.disks.map((disk) => (
@@ -747,5 +775,120 @@ function MachineRow({
         </TableCell>
       </TableRow>
     </>
+  );
+}
+
+function ProviderSettings({
+  machine,
+  save,
+  disabled,
+}: {
+  machine: Machine;
+  save: (provider: string | null) => Promise<void>;
+  disabled: boolean;
+}) {
+  const [manual, setManual] = useState(machine.providerOverride !== null);
+  const [value, setValue] = useState(machine.providerOverride ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    setManual(machine.providerOverride !== null);
+    setValue(machine.providerOverride ?? "");
+  }, [machine.providerOverride]);
+  const hosting = machine.telemetry?.hosting;
+  const id = `provider-${machine.id}`;
+  const changed = (manual ? value.trim() : null) !== machine.providerOverride;
+  return (
+    <form
+      className="max-w-lg space-y-2 border-b pb-4"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError("");
+        setSaved(false);
+        try {
+          await save(manual ? value.trim() : null);
+          setSaved(true);
+        } catch (error) {
+          setError(
+            error instanceof Error ? error.message : "Could not save provider.",
+          );
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <label htmlFor={id} className="text-xs font-medium">
+        Provider
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          id={id}
+          value={manual ? "manual" : "automatic"}
+          disabled={disabled || saving}
+          onChange={(event) => {
+            setManual(event.target.value === "manual");
+            setSaved(false);
+          }}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <option value="automatic">
+            Automatic{hosting ? ` · ${hosting.provider}` : ""}
+          </option>
+          <option value="manual">Set manually</option>
+        </select>
+        {manual && (
+          <>
+            <Input
+              className="h-8 w-44 text-xs"
+              aria-label="Provider name"
+              value={value}
+              disabled={disabled || saving}
+              required
+              maxLength={60}
+              placeholder="e.g. netcup"
+              list={`${id}-suggestions`}
+              onChange={(event) => {
+                setValue(event.target.value);
+                setSaved(false);
+              }}
+            />
+            <datalist id={`${id}-suggestions`}>
+              {PROVIDER_SUGGESTIONS.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </>
+        )}
+        <Button
+          type="submit"
+          size="xs"
+          variant="outline"
+          disabled={disabled || saving || !changed || (manual && !value.trim())}
+        >
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {hosting
+          ? `Detected: ${hosting.provider}${[hosting.region, hosting.zone].filter(Boolean).length ? ` · ${[hosting.region, hosting.zone].filter(Boolean).join(" · ")}` : ""}.`
+          : !machine.telemetry
+            ? "Detection is available after the machine reports its first metrics."
+            : machine.telemetry.hosting === undefined
+              ? "Automatic detection requires daemon 0.1.2 or later. You can set a provider manually."
+              : "No provider detected. You can set one manually."}
+      </p>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      {saved && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Provider saved.
+        </p>
+      )}
+    </form>
   );
 }

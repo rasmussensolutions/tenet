@@ -16,6 +16,7 @@ const messages: Record<string, string> = {
     "There is no newer compatible daemon release for this machine.",
   UPDATE_ALREADY_RUNNING: "An update is already in progress on this machine.",
   INVALID_MACHINE_NAME: "Enter a machine name between 1 and 80 characters.",
+  INVALID_PROVIDER: "Enter a provider name between 1 and 60 characters.",
   DAEMON_NOT_AVAILABLE:
     "Build and bundle the Linux daemon on your panel deployment first. See docs/machines.md.",
   HTTPS_REQUIRED:
