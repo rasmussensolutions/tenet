@@ -14,7 +14,7 @@ Tenet supports owner-triggered updates of the **monitoring daemon**, not operati
 
 2. Push this repository to GitHub. Use public release assets: private GitHub downloads require authentication and cannot be used directly by the VPS updater. Create a protected GitHub Actions environment named `daemon-release`, with required reviewers and restrictions on release tags. Put the contents of `private.pem` in its `TENET_RELEASE_SIGNING_KEY` secret. Restrict who can push release tags and change the workflow. Enable GitHub immutable releases for the repository. See [GitHub environment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) and [immutable release publishing](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository). These protections are repository settings; the workflow cannot configure them for you.
 
-3. Set the workspace version in `Cargo.toml` (currently `0.1.0`), update `Cargo.lock`, commit, and push a matching tag such as `daemon-v0.1.0`. `.github/workflows/daemon-release.yml` tests and builds static Linux x86_64 and aarch64 executables, signs `release.json`, and publishes the assets. Every release must have a **strictly higher** numeric version. Never rebuild or replace assets under an existing version.
+3. Set the workspace version in `Cargo.toml` (currently `0.1.1`), update `Cargo.lock`, commit, and push a matching tag such as `daemon-v0.1.1`. `.github/workflows/daemon-release.yml` tests and builds static Linux x86_64 and aarch64 executables on parallel native runners, signs `release.json`, and publishes the assets. Every release must have a **strictly higher** numeric version. Never rebuild or replace assets under an existing version.
 
 4. Configure both variables on each panel and restart/redeploy it:
 
@@ -85,7 +85,7 @@ Build, then sign with version-specific HTTPS artifact URLs:
 bun run bundle:daemon
 TENET_RELEASE_SIGNING_KEY_FILE=.release-keys/private.pem \
   bun run release:daemon sign apps/dashboard/public/daemon \
-  https://downloads.example.com/daemon/0.1.0/ \
+  https://downloads.example.com/daemon/0.1.1/ \
   /tmp/tenet-release.json
 ```
 
